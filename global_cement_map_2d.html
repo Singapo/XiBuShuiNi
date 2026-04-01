@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>西部水泥全球工厂产销数据2D可视化</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: #f5f7fa; /* 改为浅色背景，更适合2D阅读 */
+        }
+        #main {
+            width: 100%;
+            height: 100%;
+        }
+        #header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 30px;
+            border-radius: 8px;
+            border: 1px solid #dcdfe6;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            color: #303133;
+            width: 80%;
+            max-width: 1000px;
+        }
+        #header h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #2c3e50;
+        }
+        #header p {
+            margin: 0 0 15px 0;
+            color: #606266;
+            font-size: 14px;
+        }
+        
+        .stats-panel {
+            display: flex;
+            justify-content: space-between;
+            padding: 15px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin: 10px 20px;
+            z-index: 1000;
+            position: relative;
+        }
+        .stat-group {
+            flex: 1;
+            padding: 0 15px;
+            border-right: 1px solid #ebeef5;
+        }
+        .stat-group:last-child {
+            border-right: none;
+        }
+        .stat-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #303133;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #606266;
+            align-items: center;
+        }
+        .stat-value {
+            font-weight: bold;
+            color: #303133;
+        }
+        .highlight {
+            color: #f56c6c;
+        }
+        
+        /* Tooltip styles for stat items */
+        .tooltip-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: #c0c4cc;
+            color: white;
+            font-size: 10px;
+            margin-left: 5px;
+            cursor: help;
+            position: relative;
+            font-style: normal;
+        }
+        .tooltip-icon:hover {
+            background-color: #909399;
+        }
+        .tooltip-icon .tooltip-text {
+            visibility: hidden;
+            width: 200px;
+            background-color: #303133;
+            color: #fff;
+            text-align: left;
+            border-radius: 6px;
+            padding: 8px 10px;
+            position: absolute;
+            z-index: 1001;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+            line-height: 1.4;
+            font-weight: normal;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+        }
+        .tooltip-icon .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: #303133 transparent transparent transparent;
+        }
+        .tooltip-icon:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        .legend {
+            position: absolute;
+            bottom: 30px;
+            right: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #dcdfe6;
+            color: #303133;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="header">
+        <h1>西部水泥全球工厂产销数据2D可视化</h1>
+        <p>数据来源：2025年报及业绩交流会披露 | 图标大小代表产能规模，内圈绿色代表当前产量</p>
+        
+        <div class="stats-panel" id="statsPanel">
+            <!-- 动态填充统计数据 -->
+        </div>
+    </div>
+    <div id="main"></div>
+    <div class="legend">
+        <div class="legend-item"><div class="legend-color" style="background: rgba(255, 76, 76, 0.4); border: 1px solid #ff4c4c;"></div>地缘风险较高区域 (如M23战乱区)</div>
+        <div class="legend-item"><div class="legend-color" style="background: rgba(82, 196, 26, 0.4); border: 1px solid #52c41a;"></div>地缘风险较低/恢复区域</div>
+        <div class="legend-item" style="margin-top: 15px; border-top: 1px dashed #dcdfe6; padding-top: 10px;">
+            <div style="position: relative; width: 24px; height: 24px; margin-right: 8px;">
+                <div style="position: absolute; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #909399; top: 0; left: 0;"></div>
+                <div style="position: absolute; width: 12px; height: 12px; border-radius: 50%; background: #67c23a; top: 6px; left: 6px;"></div>
+            </div>
+            外圈大小=产能上限，内圈实心=当前产量
+        </div>
+    </div>
+
+    <script>
+        var chartDom = document.getElementById('main');
+        var myChart = echarts.init(chartDom);
+        var option;
+
+        // 加载世界地图中文版 GeoJSON (使用阿里云的开源镜像或者其他可靠来源，这里使用一个包含中文映射的配置)
+        // Echarts 4.9 的 world.json 是英文的，我们需要加一个 nameMap 把它转成中文
+        var nameMap = {
+            'Afghanistan':'阿富汗', 'Angola':'安哥拉', 'Albania':'阿尔巴尼亚', 'United Arab Emirates':'阿联酋',
+            'Argentina':'阿根廷', 'Armenia':'亚美尼亚', 'French Southern and Antarctic Lands':'法属南半球和南极领地',
+            'Australia':'澳大利亚', 'Austria':'奥地利', 'Azerbaijan':'阿塞拜疆', 'Burundi':'布隆迪',
+            'Belgium':'比利时', 'Benin':'贝宁', 'Burkina Faso':'贝宁', 'Bangladesh':'孟加拉国',
+            'Bulgaria':'比利时', 'The Bahamas':'孟加拉国', 'Bosnia and Herzegovina':'波黑', 'Belarus':'白俄罗斯',
+            'Belize':'伯利兹', 'Bermuda':'百慕大', 'Bolivia':'玻利维亚', 'Brazil':'巴西', 'Brunei':'文莱',
+            'Bhutan':'文莱', 'Botswana':'博茨瓦纳', 'Central African Republic':'中非', 'Canada':'加拿大',
+            'Switzerland':'瑞士', 'Chile':'智利', 'China':'中国', 'Ivory Coast':'象牙海岸',
+            'Cameroon':'喀麦隆', 'Democratic Republic of the Congo':'刚果(金)', 'Republic of the Congo':'刚果(布)',
+            'Colombia':'哥伦比亚', 'Costa Rica':'哥斯达黎加', 'Cuba':'古巴', 'Northern Cyprus':'北塞浦路斯',
+            'Cyprus':'塞浦路斯', 'Czech Republic':'捷克', 'Germany':'德国', 'Djibouti':'吉布提',
+            'Denmark':'德国', 'Dominican Republic':'多米尼加', 'Algeria':'阿尔及利亚', 'Ecuador':'厄瓜多尔',
+            'Egypt':'埃及', 'Eritrea':'厄立特里亚', 'Spain':'西班牙', 'Estonia':'爱沙尼亚',
+            'Ethiopia':'埃塞俄比亚', 'Finland':'芬兰', 'Fiji':'斐济', 'Falkland Islands':'福克兰群岛',
+            'France':'法国', 'Gabon':'加蓬', 'United Kingdom':'英国', 'Georgia':'格鲁吉亚',
+            'Ghana':'加纳', 'Guinea':'几内亚', 'Gambia':'冈比亚', 'Guinea Bissau':'几内亚比绍',
+            'Equatorial Guinea':'赤道几内亚', 'Greece':'希腊', 'Greenland':'格陵兰', 'Guatemala':'危地马拉',
+            'French Guiana':'法属圭亚那', 'Guyana':'圭亚那', 'Honduras':'洪都拉斯', 'Croatia':'克罗地亚',
+            'Haiti':'海地', 'Hungary':'匈牙利', 'Indonesia':'印尼', 'India':'印度', 'Ireland':'爱尔兰',
+            'Iran':'印度', 'Iraq':'伊拉克', 'Iceland':'冰岛', 'Israel':'以色列', 'Italy':'意大利',
+            'Jamaica':'牙买加', 'Jordan':'约旦', 'Japan':'日本', 'Kazakhstan':'哈萨克斯坦',
+            'Kenya':'肯尼亚', 'Kyrgyzstan':'吉尔吉斯斯坦', 'Cambodia':'柬埔寨', 'South Korea':'韩国',
+            'Kosovo':'科索沃', 'Kuwait':'科威特', 'Laos':'老挝', 'Lebanon':'黎巴嫩', 'Liberia':'利比里亚',
+            'Libya':'利比亚', 'Sri Lanka':'斯里兰卡', 'Lesotho':'莱索托', 'Lithuania':'立陶宛',
+            'Luxembourg':'卢森堡', 'Latvia':'拉脱维亚', 'Morocco':'摩洛哥', 'Moldova':'摩尔多瓦',
+            'Madagascar':'马达加斯加', 'Mexico':'墨西哥', 'Macedonia':'马其顿', 'Mali':'马里',
+            'Myanmar':'缅甸', 'Montenegro':'黑山', 'Mongolia':'蒙古', 'Mozambique':'莫桑比克',
+            'Mauritania':'毛里塔尼亚', 'Malawi':'马拉维', 'Malaysia':'马来西亚', 'Namibia':'纳米比亚',
+            'New Caledonia':'新喀里多尼亚', 'Niger':'尼日尔', 'Nigeria':'尼日利亚', 'Nicaragua':'尼加拉瓜',
+            'Netherlands':'荷兰', 'Norway':'挪威', 'Nepal':'尼泊尔', 'New Zealand':'新西兰', 'Oman':'阿曼',
+            'Pakistan':'巴基斯坦', 'Panama':'巴拿马', 'Peru':'秘鲁', 'Philippines':'菲律宾', 'Papua New Guinea':'巴布亚新几内亚',
+            'Poland':'波兰', 'Puerto Rico':'波多黎各', 'North Korea':'朝鲜', 'Portugal':'波兰',
+            'Paraguay':'巴拉圭', 'Qatar':'卡塔尔', 'Romania':'罗马尼亚', 'Russia':'俄罗斯', 'Rwanda':'卢旺达',
+            'Western Sahara':'西撒哈拉', 'Saudi Arabia':'沙特阿拉伯', 'Sudan':'苏丹', 'South Sudan':'南苏丹',
+            'Senegal':'塞内加尔', 'Solomon Islands':'所罗门群岛', 'Sierra Leone':'塞拉利昂', 'El Salvador':'萨尔瓦多',
+            'Somaliland':'索马里兰', 'Somalia':'索马里', 'Republic of Serbia':'塞尔维亚', 'Suriname':'苏里南',
+            'Slovakia':'斯洛伐克', 'Slovenia':'斯洛文尼亚', 'Sweden':'瑞典', 'Swaziland':'斯威士兰',
+            'Syria':'叙利亚', 'Chad':'乍得', 'Togo':'乍得', 'Thailand':'泰国', 'Tajikistan':'塔吉克斯坦',
+            'Turkmenistan':'土库曼斯坦', 'East Timor':'东帝汶', 'Trinidad and Tobago':'特立尼达和多巴哥',
+            'Tunisia':'突尼斯', 'Turkey':'土耳其', 'United Republic of Tanzania':'坦桑尼亚', 'Uganda':'乌干达',
+            'Ukraine':'乌克兰', 'Uruguay':'乌拉圭', 'United States of America':'美国', 'Uzbekistan':'乌兹别克斯坦',
+            'Venezuela':'委内瑞拉', 'Vietnam':'越南', 'Vanuatu':'瓦努阿图', 'West Bank':'西岸',
+            'Yemen':'也门', 'South Africa':'南非', 'Zambia':'赞比亚', 'Zimbabwe':'津巴布韦'
+        };
+
+        // 加载世界地图 GeoJSON
+        $.getJSON('https://cdn.jsdelivr.net/npm/echarts@4.9.0/map/json/world.json', function (geoJson) {
+            echarts.registerMap('world', geoJson);
+
+            // 工厂数据 (补充了更细的经纬度，微调避免重叠，统一价格和毛利单位为美元/吨，并在显示时附带人民币)
+            // 假设汇率: 1美元 = 7.2人民币
+            var factories = [
+                // 非洲区域
+                { name: "莱米国家水泥厂", country: "埃塞俄比亚", coord: [39.5, 9.8], capacity: 500, output: 40, price_usd: 80, margin_usd: 40, status: "active", region: "非洲" },
+                { name: "国家水泥厂", country: "埃塞俄比亚", coord: [41.8, 9.6], capacity: 150, output: 100, price_usd: 80, margin_usd: 40, status: "active", region: "非洲" },
+                { name: "Dugongo水泥厂", country: "莫桑比克", coord: [32.58, -25.96], capacity: 200, output: 160, price_usd: 83.75, margin_usd: 50, status: "active", region: "非洲" }, // 603元/7.2
+                { name: "大湖水泥厂", country: "刚果(金)", coord: [29.1, -5.9], capacity: 150, output: 80, price_usd: 121.9, margin_usd: 80, status: "active", region: "非洲" }, // 878元/7.2
+                { name: "CILU厂房", country: "刚果(金)", coord: [14.9, -5.3], capacity: 120, output: 40, price_usd: 175, margin_usd: 100, status: "active", region: "非洲" }, // 估算毛利
+                { name: "卢旺达研磨站", country: "卢旺达", coord: [30.06, -1.94], capacity: 100, output: 38, price_usd: 121.9, margin_usd: 24, status: "active", region: "非洲" }, // 173元/7.2
+                { name: "坦桑尼亚研磨站", country: "坦桑尼亚", coord: [29.63, -4.88], capacity: 30, output: 0, price_usd: 121.9, margin_usd: 75, status: "active", region: "非洲" },
+                { name: "莫罗托厂房", country: "乌干达", coord: [34.66, 2.53], capacity: 250, output: 0, price_usd: 150, margin_usd: 85, status: "building", region: "非洲" },
+                { name: "金贾粉磨厂", country: "乌干达", coord: [33.2, 0.43], capacity: 300, output: 0, price_usd: 150, margin_usd: 85, status: "building", region: "非洲" },
+                { name: "楠普拉厂房", country: "莫桑比克", coord: [39.2, -15.1], capacity: 150, output: 0, price_usd: 0, margin_usd: 0, status: "building", region: "非洲" },
+                { name: "津巴布韦厂房", country: "津巴布韦", coord: [29.8, -18.9], capacity: 150, output: 0, price_usd: 150, margin_usd: 80, status: "building", region: "非洲" }, // 估测
+                { name: "东开赛粉磨站", country: "刚果(金)", coord: [23.6, -6.1], capacity: 30, output: 0, price_usd: 475, margin_usd: 200, status: "building", region: "非洲" }, // 400-550均值
+                
+                // 中亚及国内区域
+                { name: "乌兹别克斯坦厂", country: "乌兹别克斯坦", coord: [64.58, 41.37], capacity: 200, output: 150, price_usd: 60, margin_usd: 20, status: "active", region: "中亚" }, // 估测
+                { name: "新疆资产(退出中)", country: "中国", coord: [87.68, 43.77], capacity: 300, output: 100, price_usd: 35, margin_usd: -5, status: "selling", region: "中国" }, // 估测
+                { name: "陕西核心区", country: "中国", coord: [108.94, 34.34], capacity: 2000, output: 1000, price_usd: 32.6, margin_usd: 2, status: "active", region: "中国" } // 235元/7.2
+            ];
+
+            // 动态计算并渲染统计数据
+            function renderStats() {
+                var stats = {
+                    total: factories.length,
+                    active: 0,
+                    building: 0,
+                    selling: 0,
+                    capacityTotal: 0,
+                    capacityActive: 0,
+                    capacityBuilding: 0,
+                    outputTotal: 0,
+                    revenueMonthlyEst: 0, // 粗略估算：月产量 * 价格
+                    profitMonthlyEst: 0   // 粗略估算：月产量 * 毛利
+                };
+
+                factories.forEach(function(f) {
+                    stats.capacityTotal += f.capacity;
+                    stats.outputTotal += f.output;
+                    
+                    if (f.status === 'active') {
+                        stats.active++;
+                        stats.capacityActive += f.capacity;
+                        // 估算本月营收和利润 (万元转万吨，除以12个月，单位：万美元)
+                        if (f.price_usd > 0) {
+                            stats.revenueMonthlyEst += (f.output / 12) * f.price_usd;
+                            stats.profitMonthlyEst += (f.output / 12) * f.margin_usd;
+                        }
+                    } else if (f.status === 'building') {
+                        stats.building++;
+                        stats.capacityBuilding += f.capacity;
+                    } else if (f.status === 'selling') {
+                        stats.selling++;
+                    }
+                });
+
+                // 修正利润预测算法，贴合交流会数据
+                // 根据交流会：25年下半年受汇率和大湖区战乱影响大幅下降。
+                // 25年国内上半年赚4亿，下半年亏损；海外上半年赚5亿多。
+                // 预测：26年埃塞汇率见底稳定，大湖区恢复，乌干达300万吨投产贡献大，津巴布韦等年底投产。
+                // 海外整体有30%-40%的增长预期。
+                
+                // 将统计面板中的人民币数值过大时（如超过10000万）换算为“亿元”单位显示
+                function formatRMB(val) {
+                    if (val >= 10000) {
+                        return (val / 10000).toFixed(2) + '亿';
+                    }
+                    return val.toFixed(0) + '万';
+                }
+
+                // 重新设定符合实际交流会指引的预估（按海外为主核算）
+                // 我们直接使用单厂乘以毛利的累加作为本月利润基础
+                var actualMonthlyProfitEst = stats.profitMonthlyEst;
+
+                // 远期预测考虑新建产能投产及复产增量
+                // 一季度：按本月乘3
+                var rawQ1ProfitEst = actualMonthlyProfitEst * 3; 
+                
+                // 半年报：假设二季度部分在建项目（如乌干达莫罗托/金贾）逐步贡献，给予一定增量（本月利润*6 + 建设中产能预估贡献）
+                // 这里我们简单提取建设中产能的潜在月利润贡献
+                var buildingMonthlyProfitPotential = 0;
+                factories.forEach(function(f) {
+                    if (f.status === 'building') {
+                        // 假设建设中项目如果投产，其月产量达到产能的60%，按当前设计的毛利计算潜在利润
+                        buildingMonthlyProfitPotential += (f.capacity * 0.6 / 12) * f.margin_usd;
+                    }
+                });
+                
+                // 半年报 = 一季度 + 二季度（假设包含本月基础利润*3 + 建设中产能释放的10%初期贡献*3个月）
+                var rawH1ProfitEst = rawQ1ProfitEst + (actualMonthlyProfitEst * 3) + (buildingMonthlyProfitPotential * 0.1 * 3); 
+                
+                // 26年预计：假设全年运营中工厂全量贡献(本月*12)，加上建设中工厂投产后全年贡献约30%潜能
+                var rawYear26ProfitEst = (actualMonthlyProfitEst * 12) + (buildingMonthlyProfitPotential * 0.3 * 12);
+                
+                // 引入管理层预期折扣系数：
+                // 按照交流会老张指引，26年预计利润目标在30亿人民币左右（折合约4.16亿美元，汇率7.2）。
+                // 当前理论计算值(rawYear26ProfitEst)通常高于这个实际目标（受汇率损耗、未达满产、部分停产影响），
+                // 我们动态计算一个折扣系数，使全年预测值向30亿人民币(41666万美元)靠拢。
+                var targetYear26ProfitUsd = 3000000000 / 7.2 / 10000; // 万美元单位 (约41666)
+                var forecastDiscount = targetYear26ProfitUsd / rawYear26ProfitEst;
+                // 为了避免数据异常时折扣系数过分扭曲，限制在0.4到1.0之间
+                forecastDiscount = Math.max(0.4, Math.min(1.0, forecastDiscount));
+                
+                var q1ProfitEst = rawQ1ProfitEst * forecastDiscount;
+                var h1ProfitEst = rawH1ProfitEst * forecastDiscount;
+                var year26ProfitEst = rawYear26ProfitEst * forecastDiscount;
+
+                var rmbRate = 7.2;
+
+                var html = `
+                    <div class="stat-group">
+                        <div class="stat-title">🏗️ 工厂状态</div>
+                        <div class="stat-item"><span>总数：</span><span class="stat-value">${stats.total} 座</span></div>
+                        <div class="stat-item"><span>运营中：</span><span class="stat-value" style="color:#67c23a">${stats.active} 座</span></div>
+                        <div class="stat-item"><span>建设中：</span><span class="stat-value" style="color:#e6a23c">${stats.building} 座</span></div>
+                        <div class="stat-item"><span>退出中(其他)：</span><span class="stat-value" style="color:#909399">${stats.selling} 座</span></div>
+                    </div>
+                    <div class="stat-group">
+                        <div class="stat-title">⚙️ 产能统计 (万吨/年)</div>
+                        <div class="stat-item"><span>总产能上限：</span><span class="stat-value">${stats.capacityTotal}</span></div>
+                        <div class="stat-item"><span>目前实际产能：</span><span class="stat-value">${stats.capacityActive}</span></div>
+                        <div class="stat-item"><span>建设中产能：</span><span class="stat-value" style="color:#e6a23c">${stats.capacityBuilding}</span></div>
+                        <div class="stat-item"><span>当前年化产量：</span><span class="stat-value highlight">${stats.outputTotal}</span></div>
+                    </div>
+                    <div class="stat-group">
+                        <div class="stat-title">💰 财务预期 (本月概算)
+                            <i class="tooltip-icon">?<span class="tooltip-text">本月营收/利润 = 各工厂当前实际年化产量 ÷ 12 × 各自的当前吨价/每吨毛利</span></i>
+                        </div>
+                        <div class="stat-item"><span>本月营收：</span><span class="stat-value">$${stats.revenueMonthlyEst.toFixed(0)}万 <span style="font-size:11px;color:#909399">(约¥${formatRMB(stats.revenueMonthlyEst*rmbRate)})</span></span></div>
+                        <div class="stat-item"><span>本月利润：</span><span class="stat-value highlight">$${actualMonthlyProfitEst.toFixed(0)}万 <span style="font-size:11px;color:#909399">(约¥${formatRMB(actualMonthlyProfitEst*rmbRate)})</span></span></div>
+                    </div>
+                    <div class="stat-group">
+                        <div class="stat-title">📈 利润远期预测 (贴合管理层指引)
+                            <i class="tooltip-icon">?<span class="tooltip-text">
+                            依据交流会指引(目标约30亿人民币)，对理论值应用动态折算系数：<br>
+                            • 一季度：理论本月利润×3 × 折算系数<br>
+                            • 半年报：(一季度+二季度+在建产能10%贡献) × 折算系数<br>
+                            • 26年全年：(全年基础+在建产能30%贡献) × 折算系数
+                            </span></i>
+                        </div>
+                        <div class="stat-item"><span>一季度预计：</span><span class="stat-value">$${q1ProfitEst.toFixed(0)}万 <span style="font-size:11px;color:#909399">(约¥${formatRMB(q1ProfitEst*rmbRate)})</span></span></div>
+                        <div class="stat-item"><span>半年报预计：</span><span class="stat-value">$${h1ProfitEst.toFixed(0)}万 <span style="font-size:11px;color:#909399">(约¥${formatRMB(h1ProfitEst*rmbRate)})</span></span></div>
+                        <div class="stat-item"><span>26年预计：</span><span class="stat-value highlight">$${year26ProfitEst.toFixed(0)}万 <span style="font-size:11px;color:#909399">(约¥${formatRMB(year26ProfitEst*rmbRate)})</span></span></div>
+                    </div>
+                `;
+                document.getElementById('statsPanel').innerHTML = html;
+            }
+            
+            renderStats();
+
+            // 基础放大系数，用于把产能映射为气泡大小 (稍微调大一点让图标更明显)
+            var symbolSizeRatio = 1.0; 
+
+            // 产能上限外圈数据 (空心圆)
+            var capacityData = factories.map(function (item) {
+                // 做一个对数或平方根映射，避免陕西2000的圈太大把别的盖住了
+                var size = Math.max(20, Math.sqrt(item.capacity) * 2 * symbolSizeRatio);
+                return {
+                    name: item.name,
+                    value: [item.coord[0], item.coord[1], item.capacity],
+                    symbolSize: size,
+                    itemStyle: {
+                        color: 'transparent',
+                        borderColor: '#909399', // 灰色边框
+                        borderWidth: 2,
+                        borderType: 'dashed'
+                    },
+                    data: item
+                };
+            });
+
+            // 当前产量内圈数据 (实心圆)
+            var outputData = factories.map(function (item) {
+                var size = Math.max(0, Math.sqrt(item.output) * 2 * symbolSizeRatio);
+                return {
+                    name: item.name + "_产量",
+                    value: [item.coord[0], item.coord[1], item.output],
+                    symbolSize: size,
+                    itemStyle: {
+                        color: '#67c23a', // 绿色实心
+                        opacity: 0.8
+                    },
+                    data: item
+                };
+            });
+
+            // 地缘风险区域数据 (用带有涟漪特效的散点表示)
+            var riskRegions = [
+                { name: "大湖区战乱(影响运输)", coord: [29.1, -5.9], risk: "high", desc: "M23战乱影响卢旺达熟料运输，改道坦桑尼亚基伽马港口", size: 60 },
+                { name: "莫桑北部(恢复中)", coord: [39.2, -15.1], risk: "low", desc: "去年动乱已停，今年油田项目全面启动", size: 50 },
+                { name: "埃塞俄比亚(汇率见底)", coord: [39.5, 9.8], risk: "low", desc: "阿比连任稳定，汇率见底，基建重启", size: 50 }
+            ];
+
+            var riskData = riskRegions.map(function(item) {
+                return {
+                    name: item.name,
+                    value: [item.coord[0], item.coord[1]],
+                    symbolSize: item.size,
+                    itemStyle: {
+                        color: item.risk === 'high' ? 'rgba(255, 76, 76, 0.6)' : 'rgba(82, 196, 26, 0.6)'
+                    },
+                    data: item
+                };
+            });
+
+            // 自定义文本标签（让产能和名字直接显示在地图上）
+            var labelData = factories.map(function (item) {
+                return {
+                    name: item.name,
+                    value: [item.coord[0], item.coord[1]],
+                    label: {
+                        show: true,
+                        position: 'right',
+                        formatter: function(p) {
+                            return `{name|${item.name}}\n{data|产能:${item.capacity}w / 产:${item.output}w}`;
+                        },
+                        rich: {
+                            name: {
+                                color: '#303133',
+                                fontSize: 12,
+                                fontWeight: 'bold',
+                                lineHeight: 16
+                            },
+                            data: {
+                                color: '#606266',
+                                fontSize: 11,
+                                lineHeight: 14
+                            }
+                        },
+                        backgroundColor: 'rgba(255,255,255,0.7)',
+                        padding: [2, 4],
+                        borderRadius: 3,
+                        distance: Math.sqrt(item.capacity) * symbolSizeRatio + 5 // 动态偏移，避免挡住圆圈
+                    }
+                };
+            });
+
+            option = {
+                backgroundColor: '#f5f7fa',
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        if (params.seriesName === '产能上限' || params.seriesName === '当前产量') {
+                            var d = params.data.data;
+                            var rmbRate = 7.2;
+                            var priceRmb = d.price_usd > 0 ? (d.price_usd * rmbRate).toFixed(0) : '-';
+                            var marginRmb = d.margin_usd !== 0 ? (d.margin_usd * rmbRate).toFixed(0) : '-';
+                            
+                            var priceStr = d.price_usd > 0 ? `$${d.price_usd.toFixed(1)}/吨 (约¥${priceRmb})` : '-';
+                            var marginStr = d.margin_usd !== 0 ? `$${d.margin_usd.toFixed(1)}/吨 (约¥${marginRmb})` : '-';
+                            
+                            return `
+                                <div style="padding:10px;border-radius:4px;">
+                                    <h3 style="margin:0 0 10px 0;color:#2c3e50;">${d.name} (${d.country})</h3>
+                                    <div style="display:grid;grid-template-columns:80px 1fr;gap:5px;font-size:13px;color:#606266;">
+                                        <span style="font-weight:bold;">产能上限:</span> <span>${d.capacity} 万吨/年</span>
+                                        <span style="font-weight:bold;">当前产量:</span> <span style="color:#67c23a;font-weight:bold;">${d.output} 万吨</span>
+                                        <span style="font-weight:bold;">当前吨价:</span> <span>${priceStr}</span>
+                                        <span style="font-weight:bold;">每吨毛利:</span> <span style="color:#e74c3c;font-weight:bold;">${marginStr}</span>
+                                        <span style="font-weight:bold;">状态:</span> <span>${d.status === 'active' ? '运营中' : (d.status === 'selling' ? '退出中' : '建设中')}</span>
+                                    </div>
+                                </div>
+                            `;
+                        } else if (params.seriesName === '地缘风险') {
+                            var d = params.data.data;
+                            return `
+                                <div style="padding:10px;border-radius:4px;">
+                                    <h3 style="margin:0 0 10px 0;color:${d.risk === 'high' ? '#f56c6c' : '#67c23a'};">风险区域: ${d.name}</h3>
+                                    <p style="margin:0;font-size:13px;max-width:200px;white-space:normal;color:#606266;">${d.desc}</p>
+                                </div>
+                            `;
+                        }
+                    }
+                },
+                geo: {
+                    map: 'world',
+                    roam: true, // 允许缩放和拖拽
+                    zoom: 2.5, // 初始放大倍数
+                    center: [30, 0], // 初始中心点偏向非洲
+                    nameMap: nameMap, // 使用中文名称映射
+                    label: {
+                        show: true, // 显示国家名称
+                        color: '#909399',
+                        fontSize: 10
+                    },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            color: '#303133'
+                        },
+                        itemStyle: {
+                            areaColor: '#e4e7ed'
+                        }
+                    },
+                    itemStyle: {
+                        areaColor: '#ebeef5',
+                        borderColor: '#c0c4cc',
+                        borderWidth: 1
+                    }
+                },
+                series: [
+                    // 地缘风险波纹
+                    {
+                        name: '地缘风险',
+                        type: 'effectScatter',
+                        coordinateSystem: 'geo',
+                        showEffectOn: 'render',
+                        rippleEffect: {
+                            brushType: 'stroke',
+                            scale: 2.5
+                        },
+                        itemStyle: {
+                            shadowBlur: 10,
+                            shadowColor: '#333'
+                        },
+                        data: riskData,
+                        zlevel: 1
+                    },
+                    // 产能外圈
+                    {
+                        name: '产能上限',
+                        type: 'scatter',
+                        coordinateSystem: 'geo',
+                        data: capacityData,
+                        zlevel: 2
+                    },
+                    // 产量内圈
+                    {
+                        name: '当前产量',
+                        type: 'scatter',
+                        coordinateSystem: 'geo',
+                        data: outputData,
+                        zlevel: 3
+                    },
+                    // 文本标签（用透明散点挂载文本）
+                    {
+                        name: '数据标签',
+                        type: 'scatter',
+                        coordinateSystem: 'geo',
+                        symbolSize: 0,
+                        data: labelData,
+                        zlevel: 4,
+                        silent: true // 文本不响应鼠标事件
+                    }
+                ]
+            };
+
+            myChart.setOption(option);
+            
+            window.addEventListener('resize', function() {
+                myChart.resize();
+            });
+        });
+    </script>
+</body>
+</html>
